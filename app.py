@@ -563,6 +563,13 @@ def blog_page():
     theme = request.cookies.get('theme', 'dark')
     posts = [
         {
+            'date': '2025-12-07',
+            'category': 'ようやく実装',
+            'title': 'チョコTube実装できるかも',
+            'excerpt': 'めっちゃ作るのに時間かかったんやけど…',
+            'content': '<p>チャット追加したけど、ほかのリポで作ったやつ埋め込んでるからなぁ</p><p>うまく2個のリポジトリを接続させたいなぁ</p>'
+        }
+                {
             'date': '2025-11-30',
             'category': 'お知らせ',
             'title': 'チョコTubeへようこそ！',
