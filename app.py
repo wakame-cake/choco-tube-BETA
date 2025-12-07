@@ -9,10 +9,22 @@ import random
 import time
 from functools import lru_cache
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from flask import Flask, render_template, request, jsonify, Response
+from flask import Flask, render_template, request, jsonify, Response, redirect, url_for, session
+from functools import wraps
 
 app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
+app.secret_key = os.environ.get('SESSION_SECRET', os.environ.get('SECRET_KEY', 'choco-tube-secret-key-2025'))
+
+PASSWORD = 'choco'
+
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('logged_in'):
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
 
 YOUTUBE_API_KEY = os.environ.get('YOUTUBE_API_KEY', '')
 
@@ -25,11 +37,11 @@ _edu_params_cache = {'params': None, 'timestamp': 0}
 _trending_cache = {'data': None, 'timestamp': 0}
 _thumbnail_cache = {}
 
-session = requests.Session()
+http_session = requests.Session()
 retry_strategy = Retry(total=2, backoff_factor=0.1, status_forcelist=[500, 502, 503, 504])
 adapter = HTTPAdapter(max_retries=retry_strategy, pool_connections=20, pool_maxsize=20)
-session.mount("http://", adapter)
-session.mount("https://", adapter)
+http_session.mount("http://", adapter)
+http_session.mount("https://", adapter)
 
 USER_AGENTS = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -62,7 +74,7 @@ def get_edu_params():
         return _edu_params_cache['params']
 
     try:
-        res = session.get(EDU_CONFIG_URL, headers=get_random_headers(), timeout=3)
+        res = http_session.get(EDU_CONFIG_URL, headers=get_random_headers(), timeout=3)
         res.raise_for_status()
         data = res.json()
         params = data.get('params', '')
@@ -78,7 +90,7 @@ def get_edu_params():
 
 def safe_request(url, timeout=(2, 5)):
     try:
-        res = session.get(url, headers=get_random_headers(), timeout=timeout)
+        res = http_session.get(url, headers=get_random_headers(), timeout=timeout)
         res.raise_for_status()
         return res.json()
     except:
@@ -89,7 +101,7 @@ def request_invidious_api(path, timeout=(2, 5)):
     for instance in random_instances:
         try:
             url = instance + 'api/v1' + path
-            res = session.get(url, headers=get_random_headers(), timeout=timeout)
+            res = http_session.get(url, headers=get_random_headers(), timeout=timeout)
             if res.status_code == 200:
                 return res.json()
         except:
@@ -100,7 +112,7 @@ def get_youtube_search(query, max_results=20):
     if YOUTUBE_API_KEY:
         url = f"https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&q={urllib.parse.quote(query)}&maxResults={max_results}&key={YOUTUBE_API_KEY}"
         try:
-            res = session.get(url, timeout=5)
+            res = http_session.get(url, timeout=5)
             res.raise_for_status()
             data = res.json()
             results = []
@@ -177,7 +189,7 @@ def get_video_info(video_id):
 
     if not data:
         try:
-            res = session.get(f"{EDU_VIDEO_API}{video_id}", headers=get_random_headers(), timeout=(2, 6))
+            res = http_session.get(f"{EDU_VIDEO_API}{video_id}", headers=get_random_headers(), timeout=(2, 6))
             res.raise_for_status()
             edu_data = res.json()
 
@@ -321,7 +333,7 @@ def get_stream_url(video_id):
     }
 
     try:
-        res = session.get(f"{STREAM_API}{video_id}", headers=get_random_headers(), timeout=(3, 6))
+        res = http_session.get(f"{STREAM_API}{video_id}", headers=get_random_headers(), timeout=(3, 6))
         if res.status_code == 200:
             data = res.json()
             formats = data.get('formats', [])
@@ -340,7 +352,7 @@ def get_stream_url(video_id):
         pass
 
     try:
-        res = session.get(f"{M3U8_API}{video_id}", headers=get_random_headers(), timeout=(3, 6))
+        res = http_session.get(f"{M3U8_API}{video_id}", headers=get_random_headers(), timeout=(3, 6))
         if res.status_code == 200:
             data = res.json()
             m3u8_formats = data.get('m3u8_formats', [])
@@ -417,7 +429,7 @@ def get_trending():
 def get_suggestions(keyword):
     try:
         url = f"https://suggestqueries.google.com/complete/search?client=firefox&ds=yt&q={urllib.parse.quote(keyword)}"
-        res = session.get(url, headers=get_random_headers(), timeout=2)
+        res = http_session.get(url, headers=get_random_headers(), timeout=2)
         if res.status_code == 200:
             data = res.json()
             return data[1] if len(data) > 1 else []
@@ -425,13 +437,31 @@ def get_suggestions(keyword):
         pass
     return []
 
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if session.get('logged_in'):
+        return redirect(url_for('index'))
+    
+    error = None
+    if request.method == 'POST':
+        password = request.form.get('password', '')
+        if password == PASSWORD:
+            session['logged_in'] = True
+            return redirect(url_for('index'))
+        else:
+            error = 'パスワードが間違っています'
+    
+    return render_template('login.html', error=error)
+
 @app.route('/')
+@login_required
 def index():
     theme = request.cookies.get('theme', 'dark')
     trending = get_trending()
     return render_template('index.html', videos=trending, theme=theme)
 
 @app.route('/search')
+@login_required
 def search():
     query = request.args.get('q', '')
     page = request.args.get('page', '1')
@@ -448,6 +478,7 @@ def search():
     return render_template('search.html', results=results, query=query, vc=vc, proxy=proxy, theme=theme, next=next_page)
 
 @app.route('/watch')
+@login_required
 def watch():
     video_id = request.args.get('v', '')
     theme = request.cookies.get('theme', 'dark')
@@ -470,6 +501,7 @@ def watch():
                          proxy=proxy)
 
 @app.route('/w')
+@login_required
 def watch_high_quality():
     video_id = request.args.get('v', '')
     theme = request.cookies.get('theme', 'dark')
@@ -492,6 +524,7 @@ def watch_high_quality():
                          proxy=proxy)
 
 @app.route('/ume')
+@login_required
 def watch_embed():
     video_id = request.args.get('v', '')
     theme = request.cookies.get('theme', 'dark')
@@ -514,6 +547,7 @@ def watch_embed():
                          proxy=proxy)
 
 @app.route('/edu')
+@login_required
 def watch_education():
     video_id = request.args.get('v', '')
     theme = request.cookies.get('theme', 'dark')
@@ -536,6 +570,7 @@ def watch_education():
                          proxy=proxy)
 
 @app.route('/channel/<channel_id>')
+@login_required
 def channel(channel_id):
     theme = request.cookies.get('theme', 'dark')
     vc = request.cookies.get('vc', '1')
@@ -554,21 +589,16 @@ def channel(channel_id):
                          proxy=proxy)
 
 @app.route('/help')
+@login_required
 def help_page():
     theme = request.cookies.get('theme', 'dark')
     return render_template('help.html', theme=theme)
 
 @app.route('/blog')
+@login_required
 def blog_page():
     theme = request.cookies.get('theme', 'dark')
     posts = [
-        {
-            'date': '2025-12-07',
-            'category': '実装について',
-            'title': 'チョコTube実装できるかも',
-            'excerpt': 'めっちゃ作るのに時間かかったんやけど…',
-            'content': '<p>チャット追加したけど、ほかのリポで作ったやつ埋め込んでるからなぁ</p><p>うまく2個のリポジトリを接続させたいなぁ</p>'
-        },  # ← 1つ目の記事の後にカンマつけないとだめ
         {
             'date': '2025-11-30',
             'category': 'お知らせ',
@@ -580,6 +610,7 @@ def blog_page():
     return render_template('blog.html', theme=theme, posts=posts)
 
 @app.route('/chat')
+@login_required
 def chat_page():
     theme = request.cookies.get('theme', 'dark')
     chat_server_url = os.environ.get('CHAT_SERVER_URL', '')
@@ -602,7 +633,7 @@ def thumbnail():
 
     try:
         url = f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
-        res = session.get(url, headers=get_random_headers(), timeout=3)
+        res = http_session.get(url, headers=get_random_headers(), timeout=3)
         if len(_thumbnail_cache) > 500:
             oldest_key = min(_thumbnail_cache.keys(), key=lambda k: _thumbnail_cache[k][1])
             del _thumbnail_cache[oldest_key]
