@@ -349,7 +349,37 @@ def get_channel_info(channel_id):
         'channelProfile': data.get('descriptionHtml', ''),
         'authorBanner': author_banner,
         'subscribers': data.get('subCount', 0),
-        'tags': data.get('tags', [])
+        'tags': data.get('tags', []),
+        'videoCount': data.get('videoCount', 0)
+    }
+
+def get_channel_videos(channel_id, continuation=None):
+    path = f"/channels/{urllib.parse.quote(channel_id)}/videos"
+    if continuation:
+        path += f"?continuation={urllib.parse.quote(continuation)}"
+    
+    data = request_invidious_api(path, timeout=(5, 15))
+    
+    if not data:
+        return None
+    
+    videos = []
+    for item in data.get('videos', []):
+        length_seconds = item.get('lengthSeconds', 0)
+        videos.append({
+            'type': 'video',
+            'id': item.get('videoId', ''),
+            'title': item.get('title', ''),
+            'author': item.get('author', ''),
+            'authorId': item.get('authorId', ''),
+            'published': item.get('publishedText', ''),
+            'views': item.get('viewCountText', ''),
+            'length': str(datetime.timedelta(seconds=length_seconds)) if length_seconds else ''
+        })
+    
+    return {
+        'videos': videos,
+        'continuation': data.get('continuation', '')
     }
 
 def get_stream_url(video_id):
@@ -609,14 +639,20 @@ def channel(channel_id):
     channel_info = get_channel_info(channel_id)
 
     if not channel_info:
-        return render_template('channel.html', channel=None, videos=[], theme=theme, vc=vc, proxy=proxy)
+        return render_template('channel.html', channel=None, videos=[], theme=theme, vc=vc, proxy=proxy, channel_id=channel_id, continuation='')
+
+    channel_videos = get_channel_videos(channel_id)
+    videos = channel_videos.get('videos', []) if channel_videos else channel_info.get('videos', [])
+    continuation = channel_videos.get('continuation', '') if channel_videos else ''
 
     return render_template('channel.html',
                          channel=channel_info,
-                         videos=channel_info.get('videos', []),
+                         videos=videos,
                          theme=theme,
                          vc=vc,
-                         proxy=proxy)
+                         proxy=proxy,
+                         channel_id=channel_id,
+                         continuation=continuation)
 
 @app.route('/help')
 @login_required
@@ -743,6 +779,14 @@ def api_video(video_id):
 def api_trending():
     videos = get_trending()
     return jsonify(videos)
+
+@app.route('/api/channel/<channel_id>/videos')
+def api_channel_videos(channel_id):
+    continuation = request.args.get('continuation', '')
+    result = get_channel_videos(channel_id, continuation if continuation else None)
+    if not result:
+        return jsonify({'videos': [], 'continuation': ''})
+    return jsonify(result)
 
 @app.after_request
 def add_header(response):
