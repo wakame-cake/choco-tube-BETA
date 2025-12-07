@@ -304,6 +304,7 @@ def get_playlist_info(playlist_id):
         })
 
     return {
+        'id': playlist_id,
         'title': data.get('title', ''),
         'author': data.get('author', ''),
         'authorId': data.get('authorId', ''),
@@ -541,6 +542,8 @@ def search():
 @login_required
 def watch():
     video_id = request.args.get('v', '')
+    playlist_id = request.args.get('list', '')
+    playlist_index = request.args.get('index', '0')
     theme = request.cookies.get('theme', 'dark')
     proxy = request.cookies.get('proxy', 'False')
 
@@ -550,6 +553,14 @@ def watch():
     video_info = get_video_info(video_id)
     stream_urls = get_stream_url(video_id)
     comments = get_comments(video_id)
+    
+    playlist_videos = []
+    playlist_title = ''
+    if playlist_id:
+        playlist_info = get_playlist_info(playlist_id)
+        if playlist_info:
+            playlist_videos = playlist_info.get('videos', [])
+            playlist_title = playlist_info.get('title', '')
 
     return render_template('watch.html',
                          video_id=video_id,
@@ -558,12 +569,18 @@ def watch():
                          comments=comments,
                          mode='stream',
                          theme=theme,
-                         proxy=proxy)
+                         proxy=proxy,
+                         playlist_id=playlist_id,
+                         playlist_index=int(playlist_index),
+                         playlist_videos=playlist_videos,
+                         playlist_title=playlist_title)
 
 @app.route('/w')
 @login_required
 def watch_high_quality():
     video_id = request.args.get('v', '')
+    playlist_id = request.args.get('list', '')
+    playlist_index = request.args.get('index', '0')
     theme = request.cookies.get('theme', 'dark')
     proxy = request.cookies.get('proxy', 'False')
 
@@ -573,6 +590,14 @@ def watch_high_quality():
     video_info = get_video_info(video_id)
     stream_urls = get_stream_url(video_id)
     comments = get_comments(video_id)
+    
+    playlist_videos = []
+    playlist_title = ''
+    if playlist_id:
+        playlist_info = get_playlist_info(playlist_id)
+        if playlist_info:
+            playlist_videos = playlist_info.get('videos', [])
+            playlist_title = playlist_info.get('title', '')
 
     return render_template('watch.html',
                          video_id=video_id,
@@ -581,12 +606,18 @@ def watch_high_quality():
                          comments=comments,
                          mode='high',
                          theme=theme,
-                         proxy=proxy)
+                         proxy=proxy,
+                         playlist_id=playlist_id,
+                         playlist_index=int(playlist_index),
+                         playlist_videos=playlist_videos,
+                         playlist_title=playlist_title)
 
 @app.route('/ume')
 @login_required
 def watch_embed():
     video_id = request.args.get('v', '')
+    playlist_id = request.args.get('list', '')
+    playlist_index = request.args.get('index', '0')
     theme = request.cookies.get('theme', 'dark')
     proxy = request.cookies.get('proxy', 'False')
 
@@ -596,6 +627,14 @@ def watch_embed():
     video_info = get_video_info(video_id)
     stream_urls = get_stream_url(video_id)
     comments = get_comments(video_id)
+    
+    playlist_videos = []
+    playlist_title = ''
+    if playlist_id:
+        playlist_info = get_playlist_info(playlist_id)
+        if playlist_info:
+            playlist_videos = playlist_info.get('videos', [])
+            playlist_title = playlist_info.get('title', '')
 
     return render_template('watch.html',
                          video_id=video_id,
@@ -604,12 +643,18 @@ def watch_embed():
                          comments=comments,
                          mode='embed',
                          theme=theme,
-                         proxy=proxy)
+                         proxy=proxy,
+                         playlist_id=playlist_id,
+                         playlist_index=int(playlist_index),
+                         playlist_videos=playlist_videos,
+                         playlist_title=playlist_title)
 
 @app.route('/edu')
 @login_required
 def watch_education():
     video_id = request.args.get('v', '')
+    playlist_id = request.args.get('list', '')
+    playlist_index = request.args.get('index', '0')
     theme = request.cookies.get('theme', 'dark')
     proxy = request.cookies.get('proxy', 'False')
 
@@ -619,6 +664,14 @@ def watch_education():
     video_info = get_video_info(video_id)
     stream_urls = get_stream_url(video_id)
     comments = get_comments(video_id)
+    
+    playlist_videos = []
+    playlist_title = ''
+    if playlist_id:
+        playlist_info = get_playlist_info(playlist_id)
+        if playlist_info:
+            playlist_videos = playlist_info.get('videos', [])
+            playlist_title = playlist_info.get('title', '')
 
     return render_template('watch.html',
                          video_id=video_id,
@@ -627,7 +680,11 @@ def watch_education():
                          comments=comments,
                          mode='education',
                          theme=theme,
-                         proxy=proxy)
+                         proxy=proxy,
+                         playlist_id=playlist_id,
+                         playlist_index=int(playlist_index),
+                         playlist_videos=playlist_videos,
+                         playlist_title=playlist_title)
 
 @app.route('/channel/<channel_id>')
 @login_required
@@ -639,11 +696,12 @@ def channel(channel_id):
     channel_info = get_channel_info(channel_id)
 
     if not channel_info:
-        return render_template('channel.html', channel=None, videos=[], theme=theme, vc=vc, proxy=proxy, channel_id=channel_id, continuation='')
+        return render_template('channel.html', channel=None, videos=[], theme=theme, vc=vc, proxy=proxy, channel_id=channel_id, continuation='', total_videos=0)
 
     channel_videos = get_channel_videos(channel_id)
     videos = channel_videos.get('videos', []) if channel_videos else channel_info.get('videos', [])
     continuation = channel_videos.get('continuation', '') if channel_videos else ''
+    total_videos = channel_info.get('videoCount', 0)
 
     return render_template('channel.html',
                          channel=channel_info,
@@ -652,7 +710,8 @@ def channel(channel_id):
                          vc=vc,
                          proxy=proxy,
                          channel_id=channel_id,
-                         continuation=continuation)
+                         continuation=continuation,
+                         total_videos=total_videos)
 
 @app.route('/help')
 @login_required
