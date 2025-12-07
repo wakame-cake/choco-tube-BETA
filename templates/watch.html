@@ -169,6 +169,33 @@
     </div>
 
     <aside class="watch-sidebar">
+        {% if playlist_id and playlist_videos %}
+        <div class="playlist-sidebar">
+            <div class="playlist-header-sidebar">
+                <h3 class="sidebar-title">📋 {{ playlist_title }}</h3>
+                <p class="playlist-progress">{{ playlist_index + 1 }} / {{ playlist_videos|length }}</p>
+            </div>
+            <div class="playlist-videos-sidebar">
+                {% for pv in playlist_videos %}
+                <a href="/{{ 'watch' if mode == 'stream' else ('w' if mode == 'high' else ('ume' if mode == 'embed' else 'edu')) }}?v={{ pv.id }}&list={{ playlist_id }}&index={{ loop.index0 }}" 
+                   class="playlist-item {% if loop.index0 == playlist_index %}active{% endif %}">
+                    <span class="playlist-item-index">{{ loop.index }}</span>
+                    <div class="playlist-item-thumbnail">
+                        <img src="/thumbnail?v={{ pv.id }}" alt="{{ pv.title }}" loading="lazy">
+                        {% if pv.length %}
+                        <span class="video-duration">{{ pv.length }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="playlist-item-info">
+                        <span class="playlist-item-title">{{ pv.title }}</span>
+                        <span class="playlist-item-author">{{ pv.author }}</span>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        
         <h3 class="sidebar-title">関連動画</h3>
         <div class="related-videos">
             {% if video and video.related %}
@@ -479,9 +506,29 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    const playlistId = '{{ playlist_id|default("", true) }}';
+    const playlistIndex = {{ playlist_index|default(0, true) }};
+    const playlistLength = {{ playlist_videos|length if playlist_videos else 0 }};
+    const playlistVideos = [
+        {% if playlist_videos %}
+        {% for pv in playlist_videos %}
+        { id: '{{ pv.id }}', title: '{{ pv.title|replace("'", "\\'") }}' }{% if not loop.last %},{% endif %}
+        {% endfor %}
+        {% endif %}
+    ];
+
     if (video) {
         video.addEventListener('ended', function() {
-            if (getCookie('autonext') === 'true') {
+            if (playlistId && playlistIndex < playlistLength - 1) {
+                const nextIndex = playlistIndex + 1;
+                const nextVideo = playlistVideos[nextIndex];
+                if (nextVideo) {
+                    showNextVideoNotification(nextVideo.title);
+                    setTimeout(function() {
+                        window.location.href = '/{{ "watch" if mode == "stream" else ("w" if mode == "high" else ("ume" if mode == "embed" else "edu")) }}?v=' + nextVideo.id + '&list=' + playlistId + '&index=' + nextIndex;
+                    }, 3000);
+                }
+            } else if (getCookie('autonext') === 'true') {
                 {% if video and video.related and video.related|length > 0 %}
                 setTimeout(function() {
                     window.location.href = '/watch?v={{ video.related[0].id }}';
@@ -489,6 +536,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 {% endif %}
             }
         });
+    }
+
+    function showNextVideoNotification(title) {
+        let notification = document.getElementById('next-video-notification');
+        if (!notification) {
+            notification = document.createElement('div');
+            notification.id = 'next-video-notification';
+            notification.style.cssText = 'position: fixed; bottom: 100px; right: 20px; background: rgba(0, 0, 0, 0.9); color: white; padding: 16px 24px; border-radius: 12px; z-index: 9999; max-width: 300px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);';
+            document.body.appendChild(notification);
+        }
+        notification.innerHTML = '<p style="margin: 0 0 8px 0; font-size: 12px; color: #aaa;">次の動画 (3秒後)</p><p style="margin: 0; font-size: 14px; font-weight: 500;">' + title + '</p>';
+        notification.style.display = 'block';
     }
 
     const resolutionSelect = document.getElementById('resolutionSelect');
