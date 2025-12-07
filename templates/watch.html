@@ -95,15 +95,24 @@
                 <span class="likes">👍 {{ video.likes }}</span>
             </div>
 
-            <div class="channel-info">
-                {% if video.authorThumbnail %}
-                <img src="{{ video.authorThumbnail }}" alt="{{ video.author }}" class="channel-avatar">
-                {% endif %}
-                <div class="channel-details">
-                    <a href="/channel/{{ video.authorId }}" class="channel-name">{{ video.author }}</a>
-                    {% if video.subscribers %}
-                    <span class="subscribers">{{ video.subscribers }} 人</span>
-                    {% endif %}
+            <div class="channel-info-section">
+                <div class="channel-info-left">
+                    <a href="/channel/{{ video.authorId }}" class="channel-avatar-link">
+                        {% if video.authorThumbnail %}
+                        <img src="{{ video.authorThumbnail }}" alt="{{ video.author }}" class="channel-avatar">
+                        {% else %}
+                        <div class="channel-avatar-placeholder">{{ video.author[:1] }}</div>
+                        {% endif %}
+                    </a>
+                    <div class="channel-details">
+                        <a href="/channel/{{ video.authorId }}" class="channel-name">{{ video.author }}</a>
+                        {% if video.subscribers %}
+                        <span class="subscribers">チャンネル登録者数 {{ video.subscribers }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="channel-actions">
+                    <a href="/channel/{{ video.authorId }}" class="channel-view-btn">チャンネルを見る</a>
                 </div>
             </div>
 
