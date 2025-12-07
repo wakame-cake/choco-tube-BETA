@@ -8,35 +8,32 @@
     <div class="channel-header">
         {% if channel.authorBanner %}
         <div class="channel-banner" style="background-image: url('{{ channel.authorBanner }}');"></div>
+        {% else %}
+        <div class="channel-banner channel-banner-default"></div>
         {% endif %}
         <div class="channel-profile">
             {% if channel.channelIcon %}
             <img src="{{ channel.channelIcon }}" alt="{{ channel.channelName }}" class="channel-icon">
+            {% else %}
+            <div class="channel-icon-placeholder">{{ channel.channelName[:1] }}</div>
             {% endif %}
             <div class="channel-info-main">
                 <h1 class="channel-name-large">{{ channel.channelName }}</h1>
-                <p class="channel-subscribers">{{ channel.subscribers }} 人のチャンネル登録者</p>
+                <div class="channel-stats">
+                    <span class="channel-handle">@{{ channel.channelName|replace(" ", "") }}</span>
+                    <span class="channel-subscribers">チャンネル登録者数 {{ channel.subscribers }}人</span>
+                    <span class="channel-video-count">{{ videos|length }}本の動画</span>
+                </div>
             </div>
         </div>
     </div>
 
-    {% if channel.channelProfile %}
-    <div class="channel-description-box">
-        <h3>チャンネル説明</h3>
-        <div class="channel-description">{{ channel.channelProfile|safe }}</div>
+    <div class="channel-tabs">
+        <button class="channel-tab active" data-tab="videos">動画</button>
+        <button class="channel-tab" data-tab="about">概要</button>
     </div>
-    {% endif %}
 
-    {% if channel.tags %}
-    <div class="channel-tags">
-        {% for tag in channel.tags %}
-        <a href="/search?q={{ tag }}" class="tag">{{ tag }}</a>
-        {% endfor %}
-    </div>
-    {% endif %}
-
-    <section class="channel-videos-section">
-        <h2 class="section-title">最新の動画</h2>
+    <div class="channel-tab-content" id="tab-videos">
         <div class="video-grid">
             {% for video in videos %}
             <a href="{{ '/watch' if vc == '1' else ('/w' if vc == '2' else ('/ume' if vc == '3' else '/edu')) }}?v={{ video.id }}" class="video-card">
@@ -63,7 +60,45 @@
             </div>
             {% endfor %}
         </div>
-    </section>
+    </div>
+
+    <div class="channel-tab-content hidden" id="tab-about">
+        <div class="about-section">
+            <div class="about-card">
+                <h3>説明</h3>
+                {% if channel.channelProfile %}
+                <div class="about-description">{{ channel.channelProfile|safe }}</div>
+                {% else %}
+                <p class="no-description">説明はありません</p>
+                {% endif %}
+            </div>
+
+            <div class="about-card">
+                <h3>詳細</h3>
+                <div class="about-details">
+                    <div class="detail-item">
+                        <span class="detail-label">チャンネル登録者数</span>
+                        <span class="detail-value">{{ channel.subscribers }}人</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">動画数</span>
+                        <span class="detail-value">{{ videos|length }}本</span>
+                    </div>
+                </div>
+            </div>
+
+            {% if channel.tags %}
+            <div class="about-card">
+                <h3>タグ</h3>
+                <div class="channel-tags">
+                    {% for tag in channel.tags %}
+                    <a href="/search?q={{ tag }}" class="tag">{{ tag }}</a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
     {% else %}
     <div class="channel-not-found">
         <h2>チャンネルが見つかりませんでした</h2>
@@ -72,4 +107,23 @@
     </div>
     {% endif %}
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const tabs = document.querySelectorAll('.channel-tab');
+    const contents = document.querySelectorAll('.channel-tab-content');
+
+    tabs.forEach(function(tab) {
+        tab.addEventListener('click', function() {
+            const targetId = 'tab-' + this.getAttribute('data-tab');
+
+            tabs.forEach(function(t) { t.classList.remove('active'); });
+            contents.forEach(function(c) { c.classList.add('hidden'); });
+
+            this.classList.add('active');
+            document.getElementById(targetId).classList.remove('hidden');
+        });
+    });
+});
+</script>
 {% endblock %}
